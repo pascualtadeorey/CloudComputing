@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-app-deployment
+  labels:
+    app: php-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-app
+  template:
+    metadata:
+      labels:
+        app: php-app
+    spec:
+      containers:
+        - name: php-app
+          image: php-app:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+          env:
+            - name: DB_HOST
+              value: postgres-service
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+            - name: MESSAGE_COLOR
+              valueFrom:
+                configMapKeyRef:
+                  name: php-app-config
+                  key: MESSAGE_COLOR
+            - name: MESSAGE_TITLE
+              valueFrom:
+                configMapKeyRef:
+                  name: php-app-config
+                  key: MESSAGE_TITLE
+            - name: VALUE_COLOR
+              valueFrom:
+                configMapKeyRef:
+                  name: php-app-config
+                  key: VALUE_COLOR
+            - name: VALUE_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: php-app-config
+                  key: VALUE_SIZE
+          readinessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources: # Add resource requests and limits
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+      securityContext: #add security context
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-app-service
+spec:
+  type: NodePort # Use NodePort for Minikube
+  selector:
+    app: php-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

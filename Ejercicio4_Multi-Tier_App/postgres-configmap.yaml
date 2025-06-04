@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: multi-tier-app
+data:
+  POSTGRES_DB: myappdb

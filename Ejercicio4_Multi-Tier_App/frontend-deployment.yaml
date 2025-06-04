@@ -1,0 +1,64 @@
+# frontend-deployment.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: multi-tier-app
+spec:
+  type: NodePort # Expose externally via NodePort for Minikube
+  selector:
+    app: frontend-web
+  ports:
+    - protocol: TCP
+      port: 80 # Port service listens on
+      targetPort: 80 # Port the Nginx container listens on
+      # nodePort: 30080 # Optional: Specify NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-web
+  namespace: multi-tier-app
+spec:
+  replicas: 2 # HA for the stateless frontend
+  selector:
+    matchLabels:
+      app: frontend-web
+  template:
+    metadata:
+      labels:
+        app: frontend-web
+    spec:
+      containers:
+        - name: frontend-web
+          image: frontend-web:v1 # Your built image
+          imagePullPolicy: Never # If using local image loaded into Minikube
+          ports:
+            - containerPort: 80 # Nginx default port
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          readinessProbe:
+            httpGet:
+              path: /index.php # Check if the HTML file is served
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      # --- Simulate Zone Spreading ---
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: frontend-web

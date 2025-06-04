@@ -1,0 +1,91 @@
+# backend-api-deployment.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-api-service
+  namespace: multi-tier-app
+spec:
+  selector:
+    app: backend-api
+  ports:
+    - protocol: TCP
+      port: 80 # Service port (frontend will call this)
+      targetPort: 3001 # Container port the Node.js app listens on
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-api
+  namespace: multi-tier-app
+spec:
+  replicas: 2 # HA for the stateless API
+  selector:
+    matchLabels:
+      app: backend-api
+  template:
+    metadata:
+      labels:
+        app: backend-api
+    spec:
+      containers:
+        - name: backend-api
+          image: backend-api:v1 # Your built image
+          imagePullPolicy: Never # If using local image loaded into Minikube
+          ports:
+            - containerPort: 3001 # Port defined in server.js
+          env:
+            # DB Config from ConfigMap
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: api-config
+                  key: DB_PORT
+            # DB Credentials from Secret
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            # DB Name from other ConfigMap
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_DB
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /healthz # Health check endpoint in server.js
+              port: 3001 # Port defined in server.js
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3001 # Port defined in server.js
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      # --- Simulate Zone Spreading ---
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname # Spread across nodes
+        whenUnsatisfiable: ScheduleAnyway # Or DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: backend-api

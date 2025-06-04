@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-guestbook-service
+  namespace: guestbook-ha
+spec:
+  type: LoadBalancer # Change to NodePort if needed
+  selector:
+    app: php-guestbook # Selects pods managed by the Deployment
+  ports:
+  - protocol: TCP
+    port: 80 # Port accessible externally (or on the node for NodePort)
+    targetPort: 80 # Port the container listens on
+    # nodePort: 30080 # Specify for NodePort type, if desired

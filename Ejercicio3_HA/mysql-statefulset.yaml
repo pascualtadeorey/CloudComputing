@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-db
+  namespace: guestbook-ha
+spec:
+  serviceName: mysql-db-headless # Links to the headless service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-db
+  template:
+    metadata:
+      labels:
+        app: mysql-db
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-credentials
+              key: rootpassword
+        - name: MYSQL_DATABASE
+          value: guestbook # DB name defined here
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-credentials
+              key: user
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-credentials
+              key: password
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+        # --- Best Practice: Add Liveness and Readiness Probes ---
+        # readinessProbe:
+        #   exec:
+        #     command: ["mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 5
+        #   timeoutSeconds: 2
+        # livenessProbe:
+        #   exec:
+        #     command: ["mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+  volumeClaimTemplates: # Template for the PVC
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+      # storageClassName: <your-storage-class> # Must match PVC if specified there

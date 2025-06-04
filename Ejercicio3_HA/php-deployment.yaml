@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-guestbook-web
+  namespace: guestbook-ha
+spec:
+  replicas: 3 # --- > HA Requirement: 3 replicas
+  selector:
+    matchLabels:
+      app: php-guestbook
+  template:
+    metadata:
+      labels:
+        app: php-guestbook
+    spec:
+      containers:
+      - name: php-guestbook
+        image: php-guestbook-ha:v1 # Use the image you built
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+        env:
+        - name: DB_HOST
+          value: "mysql-db-service" # Connect via ClusterIP service name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-credentials
+              key: user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-credentials
+              key: password
+        - name: DB_NAME
+          value: guestbook
+        # --- Best Practice: Add Liveness and Readiness Probes ---
+        readinessProbe:
+          httpGet:
+            path: /index.php # Check if the app can serve requests
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /index.php # Basic check if the server is running
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
